@@ -13,17 +13,18 @@ function Invoke-CIPPStandardMessageExpiration {
         CAT
             Exchange Standards
         TAG
-            "lowimpact"
         ADDEDCOMPONENT
         IMPACT
             Low Impact
+        ADDEDDATE
+            2024-02-23
         POWERSHELLEQUIVALENT
             Set-TransportConfig -MessageExpirationTimeout 12.00:00:00
         RECOMMENDEDBY
         UPDATECOMMENTBLOCK
             Run the Tools\Update-StandardsComments.ps1 script to update this comment block
     .LINK
-        https://docs.cipp.app/user-documentation/tenant/standards/edit-standards
+        https://docs.cipp.app/user-documentation/tenant/standards/list-standards/exchange-standards#low-impact
     #>
 
     param($Tenant, $Settings)
@@ -47,10 +48,11 @@ function Invoke-CIPPStandardMessageExpiration {
 
     }
     if ($Settings.alert -eq $true) {
-        if ($MessageExpiration -ne '12:00:00') {
+        if ($MessageExpiration -eq '12:00:00') {
             Write-LogMessage -API 'Standards' -tenant $tenant -message 'Transport configuration message expiration is set to 12 hours' -sev Info
         } else {
-            Write-LogMessage -API 'Standards' -tenant $tenant -message 'Transport configuration message expiration is not set to 12 hours' -sev Alert
+            Write-StandardsAlert -message "Transport configuration message expiration is not set to 12 hours" -object $MessageExpiration -tenant $tenant -standardName 'MessageExpiration' -standardId $Settings.standardId
+            Write-LogMessage -API 'Standards' -tenant $tenant -message 'Transport configuration message expiration is not set to 12 hours' -sev Info
         }
     }
     if ($Settings.report -eq $true) {
