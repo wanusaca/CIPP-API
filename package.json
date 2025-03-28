@@ -1,1 +1,14 @@
-{}
+{
+  "name": "your-app-name",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "your-actual-build-command",
+    "start": "your-start-command"  // (If you have a start script)
+  },
+  "dependencies": {
+    // ... your dependencies
+  },
+  "devDependencies": {
+    // ... your devDependencies
+  }
+}
