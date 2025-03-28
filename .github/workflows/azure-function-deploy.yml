@@ -1,4 +1,4 @@
-name: Deploy Azure Function App
+name: Deploy to Azure Function App
 
 on:
   push:
@@ -12,12 +12,13 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: 'Checkout GitHub Action'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v2
 
     - name: 'Deploy Azure Functions'
       uses: Azure/functions-action@v1
       id: deploy-to-function
       with:
-        app-name: 'cipppwrro'
+        app-name: 'cippv4yw3'
+        slot-name: 'Production'
         package: '.'
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B33FBC274CAF482A90383F8C32B226DC }}
