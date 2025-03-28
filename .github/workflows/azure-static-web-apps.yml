@@ -30,8 +30,7 @@ jobs:
           app_location: "/"
           api_location: "" # Optional
           output_location: "/out"
-          # app_build_command: "npm run build" # Added build command (adjust as needed)
-          # api_build_command: "npm run build" # If you have an API, add this too
+          skip_app_build: true # Added to skip build process
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
