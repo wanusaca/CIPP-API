@@ -8,18 +8,16 @@ on:
       - dev
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: windows-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
 
-      - name: 'Deploy to Azure Function App'
-        uses: Azure/functions-action@v1
-        with:
-          app-name: 'cipppwrro'
-          slot-name: 'Production'
-          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B33FBC274CAF482A90383F8C32B226DC }}
-        env:
-          AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
+    - name: 'Deploy Azure Functions'
+      uses: Azure/functions-action@v1
+      id: deploy-to-function
+      with:
+        app-name: 'cipppwrro'
+        package: '.'
+        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B33FBC274CAF482A90383F8C32B226DC }}
