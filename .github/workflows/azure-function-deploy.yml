@@ -1,0 +1,25 @@
+name: Deploy Azure Function App
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - dev
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 'Deploy to Azure Function App'
+        uses: Azure/functions-action@v1
+        with:
+          app-name: 'cipppwrro'
+          slot-name: 'Production'
+          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B33FBC274CAF482A90383F8C32B226DC }}
+        env:
+          AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
