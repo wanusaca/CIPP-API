@@ -179,6 +179,7 @@ function Receive-CippActivityTrigger {
     Write-Warning "Hey Boo, the activity function is running. Here's some info: $($Item | ConvertTo-Json -Depth 10 -Compress)"
     try {
         $Start = Get-Date
+        $Output = $null
         Set-Location (Get-Item $PSScriptRoot).Parent.Parent.FullName
 
         if ($Item.QueueId) {
@@ -202,7 +203,7 @@ function Receive-CippActivityTrigger {
             $FunctionName = 'Push-{0}' -f $Item.FunctionName
             try {
                 Write-Warning "Activity starting Function: $FunctionName."
-                Invoke-Command -ScriptBlock { & $FunctionName -Item $Item }
+                $Output = Invoke-Command -ScriptBlock { & $FunctionName -Item $Item }
                 Write-Warning "Activity completed Function: $FunctionName."
                 if ($TaskStatus) {
                     $QueueTask.Status = 'Completed'
@@ -244,7 +245,13 @@ function Receive-CippActivityTrigger {
             $null = Set-CippQueueTask @QueueTask
         }
     }
-    return $true
+
+    # Return the captured output if it exists and is not null, otherwise return $true
+    if ($null -ne $Output -and $Output -ne '') {
+        return $Output
+    } else {
+        return $true
+    }
 }
 
 function Receive-CIPPTimerTrigger {
@@ -291,7 +298,7 @@ function Receive-CIPPTimerTrigger {
 
             $Results = Invoke-Command -ScriptBlock { & $Function.Command @Parameters }
             if ($Results -match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
-                $FunctionStatus.OrchestratorId = $Results
+                $FunctionStatus.OrchestratorId = $Results -join ','
                 $Status = 'Started'
             } else {
                 $Status = 'Completed'
