@@ -1,5 +1,19 @@
 Write-Information '#### CIPP-API Start ####'
 
+# Load Application Insights SDK for telemetry
+Set-Location -Path $PSScriptRoot
+try {
+    $AppInsightsDllPath = Join-Path $PSScriptRoot 'Shared\AppInsights\Microsoft.ApplicationInsights.dll'
+    if (Test-Path $AppInsightsDllPath) {
+        [Reflection.Assembly]::LoadFile($AppInsightsDllPath) | Out-Null
+        Write-Information 'Application Insights SDK loaded successfully'
+    } else {
+        Write-Warning "Application Insights DLL not found at: $AppInsightsDllPath"
+    }
+} catch {
+    Write-Warning "Failed to load Application Insights SDK: $($_.Exception.Message)"
+}
+
 # Import modules
 @('CIPPCore', 'CippExtensions', 'Az.KeyVault', 'Az.Accounts', 'AzBobbyTables') | ForEach-Object {
     try {
@@ -8,6 +22,31 @@ Write-Information '#### CIPP-API Start ####'
     } catch {
         Write-LogMessage -message "Failed to import module - $Module" -LogData (Get-CippException -Exception $_) -Sev 'debug'
         $_.Exception.Message
+    }
+}
+
+# Initialize global TelemetryClient
+if (-not $global:TelemetryClient) {
+    try {
+        $connectionString = $env:APPLICATIONINSIGHTS_CONNECTION_STRING
+        if ($connectionString) {
+            # Use connection string (preferred method)
+            $config = [Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration]::CreateDefault()
+            $config.ConnectionString = $connectionString
+            $global:TelemetryClient = [Microsoft.ApplicationInsights.TelemetryClient]::new($config)
+            Enable-CippConsoleLogging
+            Write-Information 'TelemetryClient initialized with connection string'
+        } elseif ($env:APPINSIGHTS_INSTRUMENTATIONKEY) {
+            # Fall back to instrumentation key
+            $global:TelemetryClient = [Microsoft.ApplicationInsights.TelemetryClient]::new()
+            $global:TelemetryClient.InstrumentationKey = $env:APPINSIGHTS_INSTRUMENTATIONKEY
+            Enable-CippConsoleLogging
+            Write-Information 'TelemetryClient initialized with instrumentation key'
+        } else {
+            Write-Warning 'No Application Insights connection string or instrumentation key found'
+        }
+    } catch {
+        Write-Warning "Failed to initialize TelemetryClient: $($_.Exception.Message)"
     }
 }
 
@@ -63,6 +102,7 @@ if (!$LastStartup -or $CurrentVersion -ne $LastStartup.Version) {
     Remove-AzDataTableEntity @ReleaseTable -Entity @{ PartitionKey = 'GitHubReleaseNotes'; RowKey = 'GitHubReleaseNotes' } -ErrorAction SilentlyContinue
     Write-Host 'Cleared GitHub release notes cache to force refresh on version update.'
 }
+
 # Uncomment the next line to enable legacy AzureRm alias in Azure PowerShell.
 # Enable-AzureRmAlias
 

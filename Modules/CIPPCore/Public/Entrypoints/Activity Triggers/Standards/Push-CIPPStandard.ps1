@@ -38,7 +38,11 @@ function Push-CIPPStandard {
         $StandardInfo.ConditionalAccessTemplateId = $Item.Settings.TemplateList.value
     }
 
-    $Script:StandardInfo = $StandardInfo
+    # Initialize AsyncLocal storage for thread-safe per-invocation context
+    if (-not $script:CippStandardInfoStorage) {
+        $script:CippStandardInfoStorage = [System.Threading.AsyncLocal[object]]::new()
+    }
+    $script:CippStandardInfoStorage.Value = $StandardInfo
 
     try {
         # Convert settings to JSON, replace %variables%, then convert back to object
@@ -49,7 +53,28 @@ function Push-CIPPStandard {
             $Settings = $Item.Settings
         }
 
-        & $FunctionName -Tenant $Item.Tenant -Settings $Settings -ErrorAction Stop
+        # Prepare telemetry metadata for standard execution
+        $metadata = @{
+            Standard     = $Standard
+            Tenant       = $Tenant
+            TemplateId   = $Item.templateId
+            FunctionName = $FunctionName
+            TriggerType  = 'Standard'
+        }
+
+        # Add template-specific metadata
+        if ($Standard -eq 'IntuneTemplate' -and $Item.Settings.TemplateList.value) {
+            $metadata['IntuneTemplateId'] = $Item.Settings.TemplateList.value
+        }
+        if ($Standard -eq 'ConditionalAccessTemplate' -and $Item.Settings.TemplateList.value) {
+            $metadata['CATemplateId'] = $Item.Settings.TemplateList.value
+        }
+
+        # Wrap the standard execution with telemetry
+        Measure-CippTask -TaskName $Standard -EventName 'CIPP.StandardCompleted' -Metadata $metadata -Script {
+            & $FunctionName -Tenant $Item.Tenant -Settings $Settings -ErrorAction Stop
+        }
+
         Write-Information "Standard $($Standard) completed for tenant $($Tenant)"
     } catch {
         Write-LogMessage -API 'Standards' -tenant $Tenant -message "Error running standard $($Standard) for tenant $($Tenant) - $($_.Exception.Message)" -sev Error -LogData (Get-CippException -Exception $_)
@@ -57,6 +82,8 @@ function Push-CIPPStandard {
         Write-Information $_.InvocationInfo.PositionMessage
         throw $_.Exception.Message
     } finally {
-        Remove-Variable -Name StandardInfo -Scope Script -ErrorAction SilentlyContinue
+        if ($script:CippStandardInfoStorage) {
+            $script:CippStandardInfoStorage.Value = $null
+        }
     }
 }
