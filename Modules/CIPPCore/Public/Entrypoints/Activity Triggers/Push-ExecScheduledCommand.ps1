@@ -272,10 +272,15 @@ function Push-ExecScheduledCommand {
 
         # Add alert comment if available
         if ($task.AlertComment) {
-            $HTML += "<div style='background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; margin: 15px 0;'><h4 style='margin-top: 0; color: #007bff;'>Alert Information</h4><p style='margin-bottom: 0;'>$($task.AlertComment)</p></div>"
+            if ($task.AlertComment -match '%resultcount%') {
+                $resultCount = if ($Results -is [array]) { $Results.Count } else { 1 }
+                $task.AlertComment = $task.AlertComment -replace '%resultcount%', "$resultCount"
+            }
+            $task.AlertComment = Get-CIPPTextReplacement -Text $task.AlertComment -TenantFilter $Tenant
+            $HTML += "<div style='background-color: transparent; border-left: 4px solid #007bff; padding: 15px; margin: 15px 0;'><h4 style='margin-top: 0; color: #007bff;'>Alert Information</h4><p style='margin-bottom: 0;'>$($task.AlertComment)</p></div>"
         }
 
-        $title = "$TaskType - $Tenant - $($task.Name)"
+        $title = "$TaskType - $Tenant - $($task.Name)$(if ($task.Reference) { " - Reference: $($task.Reference)" })"
         Write-Information 'Scheduler: Sending the results to the target.'
         Write-Information "The content of results is: $Results"
         switch -wildcard ($task.PostExecution) {
@@ -341,4 +346,5 @@ function Push-ExecScheduledCommand {
         Write-LogMessage -API 'Scheduler_UserTasks' -tenant $Tenant -tenantid $TenantInfo.customerId -message "Successfully executed task: $($task.Name)" -sev Info
     }
     Remove-Variable -Name ScheduledTaskId -Scope Script -ErrorAction SilentlyContinue
+    return 'Task Completed Successfully.'
 }

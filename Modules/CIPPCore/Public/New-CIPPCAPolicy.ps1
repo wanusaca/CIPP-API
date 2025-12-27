@@ -144,10 +144,12 @@ function New-CIPPCAPolicy {
     if (($JSONobj.conditions.applications.includeApplications -and $JSONobj.conditions.applications.includeApplications -notcontains 'All') -or ($JSONobj.conditions.applications.excludeApplications -and $JSONobj.conditions.applications.excludeApplications -notcontains 'All')) {
         $AllServicePrincipals = New-GraphGETRequest -uri 'https://graph.microsoft.com/v1.0/servicePrincipals?$select=appId' -tenantid $TenantFilter -asApp $true
 
+        $ReservedApplicationNames = @('none', 'All', 'Office365', 'MicrosoftAdminPortals')
+
         if ($JSONobj.conditions.applications.excludeApplications -and $JSONobj.conditions.applications.excludeApplications -notcontains 'All') {
             $ValidExclusions = [system.collections.generic.list[string]]::new()
             foreach ($appId in $JSONobj.conditions.applications.excludeApplications) {
-                if ($AllServicePrincipals.appId -contains $appId) {
+                if ($AllServicePrincipals.appId -contains $appId -or $ReservedApplicationNames -contains $appId) {
                     $ValidExclusions.Add($appId)
                 }
             }
@@ -156,7 +158,7 @@ function New-CIPPCAPolicy {
         if ($JSONobj.conditions.applications.includeApplications -and $JSONobj.conditions.applications.includeApplications -notcontains 'All') {
             $ValidInclusions = [system.collections.generic.list[string]]::new()
             foreach ($appId in $JSONobj.conditions.applications.includeApplications) {
-                if ($AllServicePrincipals.appId -contains $appId) {
+                if ($AllServicePrincipals.appId -contains $appId -or $ReservedApplicationNames -contains $appId) {
                     $ValidInclusions.Add($appId)
                 }
             }
@@ -204,6 +206,7 @@ function New-CIPPCAPolicy {
     Write-Information ($LocationLookupTable | ConvertTo-Json -Depth 10)
 
     foreach ($location in $JSONobj.conditions.locations.includeLocations) {
+        if ($null -eq $location) { continue }
         $lookup = $LocationLookupTable | Where-Object { $_.name -eq $location -or $_.displayName -eq $location -or $_.templateId -eq $location }
         if (!$lookup) { continue }
         Write-Information "Replacing named location - $location"
@@ -212,6 +215,7 @@ function New-CIPPCAPolicy {
     }
 
     foreach ($location in $JSONobj.conditions.locations.excludeLocations) {
+        if ($null -eq $location) { continue }
         $lookup = $LocationLookupTable | Where-Object { $_.name -eq $location -or $_.displayName -eq $location -or $_.templateId -eq $location }
         if (!$lookup) { continue }
         Write-Information "Replacing named location - $location"
