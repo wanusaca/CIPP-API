@@ -51,7 +51,7 @@ function Invoke-CIPPStandardAddDMARCToMOERA {
 
         $CurrentInfo = $Domains | ForEach-Object {
             # Get current DNS records that matches _dmarc hostname and TXT type
-            $RecordsResponse = New-GraphGetRequest -scope 'https://admin.microsoft.com/.default' -TenantID $Tenant -Uri "https://admin.microsoft.com/admin/api/Domains/Records?domainName=$($_.Name)" -extraHeaders @{'User-Agent' = 'CIPP/1.0' }
+            $RecordsResponse = New-GraphGetRequest -scope 'https://admin.microsoft.com/.default' -TenantID $Tenant -Uri "https://admin.microsoft.com/admin/api/Domains/Records?domainName=$($_.Name)"
             $AllRecords = $RecordsResponse | Select-Object -ExpandProperty DnsRecords
             $CurrentRecords = $AllRecords | Where-Object { $_.HostName -eq '_dmarc' -and $_.Type -eq 'TXT' }
             Write-Information "Found $($CurrentRecords.count) DMARC records for domain $($_.Name)"
@@ -92,6 +92,9 @@ function Invoke-CIPPStandardAddDMARCToMOERA {
         }
         # Check if match is true and there is only one DMARC record for each domain
         $StateIsCorrect = $false -notin $CurrentInfo.Match -and $CurrentInfo.Count -eq $Domains.Count
+
+        $CurrentValue = if ($StateIsCorrect) { [PSCustomObject]@{'state' = 'Configured correctly' } } else { [PSCustomObject]@{'MissingDMARC' = @($CurrentInfo | Where-Object -Property Match -EQ $false | Select-Object -ExpandProperty DomainName) } }
+        $ExpectedValue = [PSCustomObject]@{'state' = 'Configured correctly' }
     } catch {
         $ErrorMessage = Get-CippException -Exception $_
         if ($_.Exception.Message -like '*403*') {
@@ -156,7 +159,7 @@ function Invoke-CIPPStandardAddDMARCToMOERA {
     }
 
     if ($Settings.report -eq $true) {
-        set-CIPPStandardsCompareField -FieldName 'standards.AddDMARCToMOERA' -FieldValue $StateIsCorrect -TenantFilter $Tenant
+        Set-CIPPStandardsCompareField -FieldName 'standards.AddDMARCToMOERA' -CurrentValue $CurrentValue -ExpectedValue $ExpectedValue -TenantFilter $Tenant
         Add-CIPPBPAField -FieldName 'AddDMARCToMOERA' -FieldValue $StateIsCorrect -StoreAs bool -Tenant $tenant
     }
 }

@@ -8,15 +8,17 @@ function Push-CIPPStandard {
     )
 
     Write-Information "Received queue item for $($Item.Tenant) and standard $($Item.Standard)."
+
     $Tenant = $Item.Tenant
     $Standard = $Item.Standard
     $FunctionName = 'Invoke-CIPPStandard{0}' -f $Standard
+
     Write-Information "We'll be running $FunctionName"
 
     if ($Standard -in @('IntuneTemplate', 'ConditionalAccessTemplate')) {
-        $API = "$($Standard)_$($Item.templateId)_$($Item.Settings.TemplateList.value)"
+        $API = "$($Standard)_$($Item.TemplateId)_$($Item.Settings.TemplateList.value)"
     } else {
-        $API = "$($Standard)_$($Item.templateId)"
+        $API = "$($Standard)_$($Item.TemplateId)"
     }
 
     $Rerun = Test-CIPPRerun -Type Standard -Tenant $Tenant -API $API
@@ -29,7 +31,7 @@ function Push-CIPPStandard {
 
     $StandardInfo = @{
         Standard           = $Standard
-        StandardTemplateId = $Item.templateId
+        StandardTemplateId = $Item.TemplateId
     }
     if ($Standard -eq 'IntuneTemplate') {
         $StandardInfo.IntuneTemplateId = $Item.Settings.TemplateList.value
@@ -44,6 +46,30 @@ function Push-CIPPStandard {
     }
     $script:CippStandardInfoStorage.Value = $StandardInfo
 
+    # ---- Standard execution telemetry ----
+    $runId = [guid]::NewGuid().ToString()
+    $invocationId = if ($ExecutionContext -and $ExecutionContext.InvocationId) {
+        "$($ExecutionContext.InvocationId)"
+    } else {
+        $null
+    }
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $result = 'Unknown'
+    $err = $null
+
+    Write-Information -Tag 'CIPPStandardStart' -MessageData (@{
+            Kind         = 'CIPPStandardStart'
+            RunId        = $runId
+            InvocationId = $invocationId
+            Tenant       = $Tenant
+            Standard     = $Standard
+            TemplateId   = $Item.TemplateId
+            API          = $API
+            FunctionName = $FunctionName
+        } | ConvertTo-Json -Compress)
+    # -------------------------------------
+
     try {
         # Convert settings to JSON, replace %variables%, then convert back to object
         $SettingsJSON = $Item.Settings | ConvertTo-Json -Depth 10 -Compress
@@ -57,12 +83,11 @@ function Push-CIPPStandard {
         $metadata = @{
             Standard     = $Standard
             Tenant       = $Tenant
-            TemplateId   = $Item.templateId
+            TemplateId   = $Item.TemplateId
             FunctionName = $FunctionName
             TriggerType  = 'Standard'
         }
 
-        # Add template-specific metadata
         if ($Standard -eq 'IntuneTemplate' -and $Item.Settings.TemplateList.value) {
             $metadata['IntuneTemplateId'] = $Item.Settings.TemplateList.value
         }
@@ -70,18 +95,37 @@ function Push-CIPPStandard {
             $metadata['CATemplateId'] = $Item.Settings.TemplateList.value
         }
 
-        # Wrap the standard execution with telemetry
         Measure-CippTask -TaskName $Standard -EventName 'CIPP.StandardCompleted' -Metadata $metadata -Script {
             & $FunctionName -Tenant $Item.Tenant -Settings $Settings -ErrorAction Stop
         }
 
+        $result = 'Success'
         Write-Information "Standard $($Standard) completed for tenant $($Tenant)"
     } catch {
+        $result = 'Failed'
+        $err = $_.Exception.Message
+
         Write-LogMessage -API 'Standards' -tenant $Tenant -message "Error running standard $($Standard) for tenant $($Tenant) - $($_.Exception.Message)" -sev Error -LogData (Get-CippException -Exception $_)
         Write-Warning "Error running standard $($Standard) for tenant $($Tenant) - $($_.Exception.Message)"
         Write-Information $_.InvocationInfo.PositionMessage
         throw $_.Exception.Message
     } finally {
+        $sw.Stop()
+
+        Write-Information -Tag 'CIPPStandardEnd' -MessageData (@{
+                Kind         = 'CIPPStandardEnd'
+                RunId        = $runId
+                InvocationId = $invocationId
+                Tenant       = $Tenant
+                Standard     = $Standard
+                TemplateId   = $Item.TemplateId
+                API          = $API
+                FunctionName = $FunctionName
+                Result       = $result
+                ElapsedMs    = $sw.ElapsedMilliseconds
+                Error        = $err
+            } | ConvertTo-Json -Compress)
+
         if ($script:CippStandardInfoStorage) {
             $script:CippStandardInfoStorage.Value = $null
         }
