@@ -99,6 +99,7 @@ function Push-CIPPDBCacheData {
                 'ExoPresetSecurityPolicy'
                 'ExoTenantAllowBlockList'
                 'Mailboxes'
+                'CASMailboxes'
                 'MailboxUsage'
                 'OneDriveUsage'
             )
@@ -157,6 +158,7 @@ function Push-CIPPDBCacheData {
                 'IntunePolicies'
                 'ManagedDeviceEncryptionStates'
                 'IntuneAppProtectionPolicies'
+                'DetectedApps'
             )
             foreach ($CacheFunction in $IntuneCacheFunctions) {
                 $Batch.Add(@{
@@ -182,7 +184,7 @@ function Push-CIPPDBCacheData {
 
         if ($Item.TestRun -eq $true) {
             $InputObject | Add-Member -NotePropertyName PostExecution -NotePropertyValue @{
-                FunctionName = 'CIPPTestsRun'
+                FunctionName = 'CIPPDBTestsRun'
                 Parameters   = @{
                     TenantFilter = $TenantFilter
                 }
