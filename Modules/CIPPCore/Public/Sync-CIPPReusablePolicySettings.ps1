@@ -12,13 +12,14 @@ function Sync-CIPPReusablePolicySettings {
     $reusableRefs = @($TemplateInfo.ReusableSettings)
     if (-not $reusableRefs) { return $result }
 
-    $existingReusableSettings = New-GraphGETRequest -Uri 'https://graph.microsoft.com/beta/deviceManagement/reusablePolicySettings?$top=999' -tenantid $Tenant
+    # The list endpoint omits settingInstance unless explicitly selected, which would make every compare fail
+    $existingReusableSettings = New-GraphGETRequest -Uri 'https://graph.microsoft.com/beta/deviceManagement/reusablePolicySettings?$top=999&$select=id,displayName,description,settingDefinitionId,settingInstance,version' -tenantid $Tenant
     $table = Get-CippTable -tablename 'templates'
     $templateEntities = Get-CIPPAzDataTableEntity @table -Filter "PartitionKey eq 'IntuneReusableSettingTemplate'"
 
     foreach ($ref in $reusableRefs) {
         $templateId = $ref.templateId ?? $ref.templateID ?? $ref.GUID ?? $ref.RowKey
-        $sourceId = $ref.sourceId ?? $ref.sourceReusableSettingId ?? $ref.sourceGuid ?? $ref.id
+        $sourceId = $ref.sourceId ?? $ref.sourceGuid ?? $ref.id
         $displayName = $ref.displayName ?? $ref.DisplayName
 
         if (-not $templateId -or -not $displayName) { continue }
@@ -65,7 +66,14 @@ function Sync-CIPPReusablePolicySettings {
             }
         }
 
-        if ($sourceId -and $targetId) { $result.Map[$sourceId] = $targetId }
+        if ($targetId) {
+            $replacementKey = $sourceId
+            if ($TemplateInfo.RawJSON -and $templateId -and $TemplateInfo.RawJSON -match [regex]::Escape($templateId)) {
+                $replacementKey = $templateId
+            }
+
+            if ($replacementKey) { $result.Map[$replacementKey] = $targetId }
+        }
     }
 
     $updatedJson = $result.RawJSON
